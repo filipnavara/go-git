@@ -21,6 +21,7 @@ type Storage struct {
 	ShallowStorage
 	ConfigStorage
 	ModuleStorage
+	CommitGraphStorage
 }
 
 // Options holds configuration for the storage.
@@ -51,12 +52,13 @@ func NewStorageWithOptions(fs billy.Filesystem, cache cache.Object, ops Options)
 		fs:  fs,
 		dir: dir,
 
-		ObjectStorage:    *NewObjectStorageWithOptions(dir, cache, ops),
-		ReferenceStorage: ReferenceStorage{dir: dir},
-		IndexStorage:     IndexStorage{dir: dir},
-		ShallowStorage:   ShallowStorage{dir: dir},
-		ConfigStorage:    ConfigStorage{dir: dir},
-		ModuleStorage:    ModuleStorage{dir: dir},
+		ObjectStorage:      *NewObjectStorageWithOptions(dir, cache, ops),
+		ReferenceStorage:   ReferenceStorage{dir: dir},
+		IndexStorage:       IndexStorage{dir: dir},
+		ShallowStorage:     ShallowStorage{dir: dir},
+		ConfigStorage:      ConfigStorage{dir: dir},
+		ModuleStorage:      ModuleStorage{dir: dir},
+		CommitGraphStorage: CommitGraphStorage{dir: dir},
 	}
 }
 

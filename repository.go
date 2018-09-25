@@ -1491,3 +1491,12 @@ func (r *Repository) createNewObjectPack(cfg *RepackConfig) (h plumbing.Hash, er
 
 	return h, err
 }
+
+// CommitNodeIndex returns the index for walking commit graph
+func (r *Repository) CommitNodeIndex() object.CommitNodeIndex {
+	graphIndex, err := r.Storer.CommitGraphIndex()
+	if err == nil {
+		return object.NewGraphCommitNodeIndex(graphIndex, r.Storer)
+	}
+	return object.NewObjectCommitNodeIndex(r.Storer)
+}

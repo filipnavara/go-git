@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/openpgp"
 
@@ -140,6 +141,13 @@ func (c *Commit) Files() (*FileIter, error) {
 	}
 
 	return tree.Files(), nil
+}
+
+// CommitTime returns the time when the commit was performed.
+//
+// CommitTime is present to fulfill the CommitNode interface.
+func (c *Commit) CommitTime() time.Time {
+	return c.Committer.When
 }
 
 // ID returns the object ID of the commit. The returned value will always match

@@ -3,7 +3,10 @@ package memory
 
 import (
 	"fmt"
+	"os"
 	"time"
+
+	"gopkg.in/src-d/go-git.v4/plumbing/format/commitgraph"
 
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -26,6 +29,7 @@ type Storage struct {
 	IndexStorage
 	ReferenceStorage
 	ModuleStorage
+	CommitGraphStorage
 }
 
 // NewStorage returns a new Storage base on memory
@@ -318,4 +322,20 @@ func (s ModuleStorage) Module(name string) (storage.Storer, error) {
 	s[name] = m
 
 	return m, nil
+}
+
+type CommitGraphStorage struct {
+	idx commitgraph.Index
+}
+
+func (s CommitGraphStorage) CommitGraphIndex() (commitgraph.Index, error) {
+	if s.idx != nil {
+		return s.idx, nil
+	}
+	return nil, os.ErrNotExist
+}
+
+func (s CommitGraphStorage) SetCommitGraphIndex(idx commitgraph.Index) error {
+	s.idx = idx
+	return nil
 }

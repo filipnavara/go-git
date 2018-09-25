@@ -16,6 +16,7 @@ type Storer interface {
 	storer.IndexStorer
 	config.ConfigStorer
 	ModuleStorer
+	storer.CommitGraphStorer
 }
 
 // ModuleStorer allows interact with the modules' Storers

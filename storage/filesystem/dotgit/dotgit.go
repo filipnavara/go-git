@@ -150,6 +150,11 @@ func (d *DotGit) Close() error {
 	return nil
 }
 
+// CommitGraphPath returns the path to the commit graph file
+func (d *DotGit) CommitGraphPath() string {
+	return d.fs.Join(objectsPath, "info", "commit-graph")
+}
+
 // ConfigWriter returns a file pointer for write to the config file
 func (d *DotGit) ConfigWriter() (billy.File, error) {
 	return d.fs.Create(configPath)
