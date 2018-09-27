@@ -29,6 +29,9 @@ type CommitNodeIndex interface {
 
 	// Commit returns the full commit object from the node
 	Commit(node CommitNode) (*Commit, error)
+
+	// BloomFilter returns optional bloom filter for changed file paths
+	BloomFilter(node CommitNode) (*commitgraph.BloomPathFilter, error)
 }
 
 // CommitNodeIter is a generic closable interface for iterating over commit nodes.
@@ -175,6 +178,14 @@ func (gci *graphCommitNodeIndex) Commit(node CommitNode) (*Commit, error) {
 	return co, nil
 }
 
+// BloomFilter returns optional bloom filter for changed file paths
+func (gci *graphCommitNodeIndex) BloomFilter(node CommitNode) (*commitgraph.BloomPathFilter, error) {
+	if cgn, ok := node.(*graphCommitNode); ok {
+		return gci.commitGraph.GetBloomFilterByIndex(cgn.index)
+	}
+	return nil, plumbing.ErrObjectNotFound
+}
+
 func NewObjectCommitNodeIndex(s storer.EncodedObjectStorer) CommitNodeIndex {
 	return &objectCommitNodeIndex{s}
 }
@@ -206,6 +217,11 @@ func (oci *objectCommitNodeIndex) ParentHashes(node CommitNode) []plumbing.Hash 
 func (oci *objectCommitNodeIndex) Commit(node CommitNode) (*Commit, error) {
 	co := node.(*Commit)
 	return co, nil
+}
+
+// BloomFilter returns optional bloom filter for changed file paths
+func (oci *objectCommitNodeIndex) BloomFilter(node CommitNode) (*commitgraph.BloomPathFilter, error) {
+	return nil, plumbing.ErrObjectNotFound
 }
 
 // parentCommitNodeIter provides an iterator for parent commits from associated CommitNodeIndex.

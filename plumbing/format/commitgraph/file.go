@@ -23,11 +23,12 @@ var (
 	// graph file is corrupted.
 	ErrMalformedCommitGraphFile = errors.New("Malformed commit graph file")
 
-	commitFileSignature    = []byte{'C', 'G', 'P', 'H'}
-	oidFanoutSignature     = []byte{'O', 'I', 'D', 'F'}
-	oidLookupSignature     = []byte{'O', 'I', 'D', 'L'}
-	commitDataSignature    = []byte{'C', 'D', 'A', 'T'}
-	largeEdgeListSignature = []byte{'E', 'D', 'G', 'E'}
+	commitFileSignature        = []byte{'C', 'G', 'P', 'H'}
+	oidFanoutSignature         = []byte{'O', 'I', 'D', 'F'}
+	oidLookupSignature         = []byte{'O', 'I', 'D', 'L'}
+	commitDataSignature        = []byte{'C', 'D', 'A', 'T'}
+	largeEdgeListSignature     = []byte{'E', 'D', 'G', 'E'}
+	experimentalBloomSignature = []byte{'X', 'G', 'G', 'B'}
 
 	parentNone        = uint32(0x70000000)
 	parentOctopusUsed = uint32(0x80000000)
@@ -41,6 +42,7 @@ type fileIndex struct {
 	oidLookupOffset     int64
 	commitDataOffset    int64
 	largeEdgeListOffset int64
+	bloomOffset         int64
 }
 
 // OpenFileIndex opens a serialized commit graph file in the format described at
@@ -73,6 +75,7 @@ func OpenFileIndex(reader io.ReaderAt) (Index, error) {
 	var oidLookupOffset int64
 	var commitDataOffset int64
 	var largeEdgeListOffset int64
+	var bloomOffset int64
 	chunkCount := int(header[2])
 	for i := 0; i < chunkCount; i++ {
 		chunkHeader := io.NewSectionReader(reader, 8+(int64(i)*12), 12)
@@ -92,6 +95,8 @@ func OpenFileIndex(reader io.ReaderAt) (Index, error) {
 			commitDataOffset = int64(chunkOffset)
 		} else if bytes.Equal(chunkID, largeEdgeListSignature) {
 			largeEdgeListOffset = int64(chunkOffset)
+		} else if bytes.Equal(chunkID, experimentalBloomSignature) {
+			bloomOffset = int64(chunkOffset)
 		}
 	}
 
@@ -113,7 +118,7 @@ func OpenFileIndex(reader io.ReaderAt) (Index, error) {
 		fanout[i] = int(fanoutValue)
 	}
 
-	return &fileIndex{reader, fanout, oidLookupOffset, commitDataOffset, largeEdgeListOffset}, nil
+	return &fileIndex{reader, fanout, oidLookupOffset, commitDataOffset, largeEdgeListOffset, bloomOffset}, nil
 }
 
 func (fi *fileIndex) GetIndexByHash(h plumbing.Hash) (int, error) {
@@ -147,6 +152,10 @@ func (fi *fileIndex) GetIndexByHash(h plumbing.Hash) (int, error) {
 }
 
 func (fi *fileIndex) GetNodeByIndex(idx int) (*Node, error) {
+	if idx >= fi.fanout[0xff] {
+		return nil, plumbing.ErrObjectNotFound
+	}
+
 	offset := fi.commitDataOffset + int64(idx)*36
 	commitDataReader := io.NewSectionReader(fi.reader, offset, 36)
 
@@ -230,4 +239,19 @@ func (fi *fileIndex) Hashes() []plumbing.Hash {
 		}
 	}
 	return hashes
+}
+
+// GetBloomFilterByIndex gets the bloom filter for files changed in the commit, if available
+func (fi *fileIndex) GetBloomFilterByIndex(i int) (*BloomPathFilter, error) {
+	if fi.bloomOffset == 0 || i >= fi.fanout[0xff] {
+		return nil, plumbing.ErrObjectNotFound
+	}
+
+	offset := fi.bloomOffset + int64(i)*640
+	bloomReader := io.NewSectionReader(fi.reader, offset, 640)
+	bloomBits := make([]byte, 640)
+	if _, err := io.ReadAtLeast(bloomReader, bloomBits, 640); err != nil {
+		return nil, err
+	}
+	return LoadBloomPathFilter(bloomBits), nil
 }

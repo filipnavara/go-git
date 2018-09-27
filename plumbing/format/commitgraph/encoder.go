@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"hash"
 	"io"
+	"math"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/utils/binary"
@@ -47,10 +48,22 @@ func (e *Encoder) Encode(idx Index) error {
 		}
 	}
 
+	// Find out if the bloom filters are present
+	hasBloomFilters := false
+	for i := 0; i < len(hashes); i++ {
+		_, err := idx.GetBloomFilterByIndex(i)
+		if err == nil {
+			hasBloomFilters = true
+			chunkCount++
+			break
+		}
+	}
+
 	var fanoutOffset = uint64(20 + (chunkCount * 12))
 	var oidLookupOffset = fanoutOffset + 4*256
 	var commitDataOffset = oidLookupOffset + uint64(len(hashes))*20
-	var largeEdgeListOffset = commitDataOffset + uint64(len(hashes))*36
+	var bloomOffset = commitDataOffset + uint64(len(hashes))*36
+	var largeEdgeListOffset = bloomOffset
 	var largeEdges []uint32
 
 	// Write header
@@ -65,6 +78,11 @@ func (e *Encoder) Encode(idx Index) error {
 	binary.WriteUint64(e, oidLookupOffset)
 	e.Write(commitDataSignature)
 	binary.WriteUint64(e, commitDataOffset)
+	if hasBloomFilters {
+		e.Write(experimentalBloomSignature)
+		binary.WriteUint64(e, bloomOffset)
+		largeEdgeListOffset += 640 * uint64(len(hashes))
+	}
 	if hasLargeEdges {
 		e.Write(largeEdgeListSignature)
 		binary.WriteUint64(e, largeEdgeListOffset)
@@ -73,7 +91,7 @@ func (e *Encoder) Encode(idx Index) error {
 	binary.WriteUint64(e, uint64(0))
 
 	// Write fanout
-	var cumulative uint32 = 0
+	var cumulative uint32
 	for i := 0; i <= 0xff; i++ {
 		if err := binary.WriteUint32(e, hashFirstToCount[byte(i)]+cumulative); err != nil {
 			return err
@@ -117,6 +135,20 @@ func (e *Encoder) Encode(idx Index) error {
 		unixTime := uint64(commitData.When.Unix())
 		unixTime |= uint64(commitData.Generation) << 34
 		binary.WriteUint64(e, unixTime)
+	}
+
+	// Write bloom filters (experimental)
+	if hasBloomFilters {
+		for _, hash := range hashes {
+			origIndex, _ := idx.GetIndexByHash(hash)
+			if bloomFilter, err := idx.GetBloomFilterByIndex(origIndex); err != nil {
+				for i := 0; i < 80; i++ {
+					binary.WriteUint64(e, math.MaxUint64)
+				}
+			} else {
+				e.Write(bloomFilter.Data())
+			}
+		}
 	}
 
 	// Write large edges if necessary

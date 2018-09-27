@@ -5,8 +5,9 @@ import (
 )
 
 type MemoryIndex struct {
-	commitData []*Node
-	indexMap   map[plumbing.Hash]int
+	commitData   []*Node
+	bloomFilters []*BloomPathFilter
+	indexMap     map[plumbing.Hash]int
 }
 
 // NewMemoryIndex creates in-memory commit graph representation
@@ -45,8 +46,22 @@ func (mi *MemoryIndex) Hashes() []plumbing.Hash {
 	return hashes
 }
 
+// GetBloomFilterByIndex gets the bloom filter for files changed in the commit, if available
+func (mi *MemoryIndex) GetBloomFilterByIndex(i int) (*BloomPathFilter, error) {
+	if int(i) >= len(mi.bloomFilters) || mi.bloomFilters[i] == nil {
+		return nil, plumbing.ErrObjectNotFound
+	}
+
+	return mi.bloomFilters[i], nil
+}
+
 // Add adds new node to the memory index
 func (mi *MemoryIndex) Add(hash plumbing.Hash, node *Node) error {
+	return mi.AddWithBloom(hash, node, nil)
+}
+
+// AddWithBloom adds new node to the memory index, including the optional bloom filter for changed files
+func (mi *MemoryIndex) AddWithBloom(hash plumbing.Hash, node *Node, bloom *BloomPathFilter) error {
 	// Map parent hashes to parent indexes
 	parentIndexes := make([]int, len(node.ParentHashes))
 	for i, parentHash := range node.ParentHashes {
@@ -58,5 +73,6 @@ func (mi *MemoryIndex) Add(hash plumbing.Hash, node *Node) error {
 	node.ParentIndexes = parentIndexes
 	mi.indexMap[hash] = len(mi.commitData)
 	mi.commitData = append(mi.commitData, node)
+	mi.bloomFilters = append(mi.bloomFilters, bloom)
 	return nil
 }

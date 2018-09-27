@@ -32,4 +32,7 @@ type Index interface {
 	GetNodeByIndex(i int) (*Node, error)
 	// Hashes returns all the hashes that are available in the index
 	Hashes() []plumbing.Hash
+
+	// GetBloomFilterByIndex gets the bloom filter for files changed in the commit, if available
+	GetBloomFilterByIndex(i int) (*BloomPathFilter, error)
 }
